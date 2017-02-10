@@ -1,5 +1,7 @@
-import logging
+# coding=utf-8
 
+import json
+import logging
 import requests
 
 log = logging.getLogger(__name__)
@@ -29,7 +31,10 @@ class APIClient:
         kwargs = self.add_auth_headers(kwargs)
         resp = func(*args, **kwargs)
         resp.raise_for_status()
-        ret = resp.json()
+        try:
+            ret = resp.json()
+        except json.JSONDecodeError:
+            ret = resp
         log.debug('HTTP RESPONSE {}'.format(ret))
         return ret
 

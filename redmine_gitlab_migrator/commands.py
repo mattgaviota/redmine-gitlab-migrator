@@ -61,6 +61,11 @@ def parse_args():
             help="do not perform any action, just check everything is ready")
 
         i.add_argument(
+            '--closed',
+            required=False, action='store_true', default=False,
+            help="migrate only closed")
+
+        i.add_argument(
             '--debug',
             required=False, action='store_true', default=False,
             help="More output")
@@ -68,17 +73,17 @@ def parse_args():
     return parser.parse_args()
 
 
-def check(func, message, redmine_project, gitlab_project):
-    ret = func(redmine_project, gitlab_project)
+def check(func, message, redmine_project, gitlab_project, closed=False):
+    ret, users = func(redmine_project, gitlab_project, closed)
     if ret:
-        log.info('{}... OK'.format(message))
+        log.info('{}... OK.'.format(message))
     else:
-        log.error('{}... FAILED'.format(message))
+        log.error('{}... FAILED. Missing Users: {}'.format(message, users))
         exit(1)
 
 
-def check_users(redmine_project, gitlab_project):
-    users = redmine_project.get_participants()
+def check_users(redmine_project, gitlab_project, closed=False):
+    users = redmine_project.get_participants(closed)
     # Filter out anonymous user
     nicks = [i['login'] for i in users if i['login'] != '']
     log.info('Project users are: {}'.format(', '.join(nicks) + ' '))
@@ -87,15 +92,15 @@ def check_users(redmine_project, gitlab_project):
 
 
 def check_no_issue(redmine_project, gitlab_project):
-    return len(gitlab_project.get_issues()) == 0
+    return (len(gitlab_project.get_issues()) == 0, [])
 
 
 def check_no_milestone(redmine_project, gitlab_project):
-    return len(gitlab_project.get_milestones()) == 0
+    return len(gitlab_project.get_milestones()) == 0, []
 
 
 def check_origin_milestone(redmine_project, gitlab_project):
-    return len(redmine_project.get_versions()) > 0
+    return len(redmine_project.get_versions()) > 0, []
 
 
 def perform_migrate_issues(args):
@@ -108,19 +113,19 @@ def perform_migrate_issues(args):
     gitlab_instance = gitlab_project.get_instance()
 
     gitlab_users_index = gitlab_instance.get_users_index()
-    redmine_users_index = redmine_project.get_users_index()
+    redmine_users_index = redmine_project.get_users_index(args.closed)
 
-    checks = [
-        (check_users, 'Required users presence'),
-        (check_no_issue, 'Project has no pre-existing issue'),
-    ]
-    for i in checks:
-        check(
-            *i, redmine_project=redmine_project, gitlab_project=gitlab_project)
+    check(
+        check_users,
+        'Required users presence',
+        redmine_project=redmine_project,
+        gitlab_project=gitlab_project,
+        closed=args.closed
+    )
 
     # Get issues
 
-    issues = redmine_project.get_all_issues()
+    issues = redmine_project.get_all_issues(args.closed)
     milestones_index = gitlab_project.get_milestones_index()
     issues_data = (
         convert_issue(
@@ -139,10 +144,16 @@ def perform_migrate_issues(args):
                         "Check that you already migrated roadmaps".format(
                             data['title'], milestone_id))
 
-            log.info('Would create issue "{}" and {} notes.'.format(
-                data['title'],
-                len(meta['notes'])))
+            log.info(
+                'Would create issue "{}" and {} notes.'.
+                format(
+                    data['title'],
+                    len(meta['notes'])
+                )
+            )
         else:
+            if not args.closed:
+                closed = redmine_project.close_issue(data)
             created = gitlab_project.create_issue(data, meta)
             log.info('#{iid} {title}'.format(**created))
 

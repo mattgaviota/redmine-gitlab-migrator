@@ -39,7 +39,14 @@ class GitlabInstance:
         """ Returns True if all users exist
         """
         gitlab_user_names = set([i['username'] for i in self.get_all_users()])
-        return all((i in gitlab_user_names for i in usernames))
+        missing_users = []
+        result = True
+        for user in usernames:
+            if user not in gitlab_user_names:
+                missing_users.append(user)
+        if missing_users:
+            result = False
+        return (result, missing_users)
 
 
 class GitlabProject(Project):
@@ -66,6 +73,7 @@ class GitlabProject(Project):
         :param data: dict formatted as the gitlab API expects it
         :return: the created issue (without notes)
         """
+        data.pop('id', None)
         issues_url = '{}/issues'.format(self.api_url)
         issue = self.api.post(
             issues_url, data=data, headers={'SUDO': meta['sudo_user']})

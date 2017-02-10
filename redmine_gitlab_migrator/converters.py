@@ -2,7 +2,7 @@
 """
 
 import logging
-
+import pypandoc
 
 log = logging.getLogger(__name__)
 
@@ -86,16 +86,21 @@ def convert_issue(redmine_issue, redmine_user_index, gitlab_user_index,
     if len(relations_text) > 0:
         relations_text = ', ' + relations_text
 
+    description = pypandoc.convert_text(
+        redmine_issue['description'],
+        'md',
+        format='textile'
+    )
     data = {
-        'title': '-RM-{}-MR-{}'.format(
-            redmine_issue['id'], redmine_issue['subject']),
+        'title': redmine_issue['subject'].strip(),
         'description': '{}\n\n*(from redmine: created on {}{}{})*'.format(
-            redmine_issue['description'],
+            description,
             redmine_issue['created_on'][:10],
             close_text,
             relations_text
         ),
-        'labels': [redmine_issue['tracker']['name']]
+        'labels': [redmine_issue['tracker']['name']],
+        'id': redmine_issue['id']
     }
 
     version = redmine_issue.get('fixed_version', None)
