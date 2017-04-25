@@ -3,6 +3,7 @@ import argparse
 import logging
 import re
 import sys
+import time
 
 from redmine_gitlab_migrator.redmine import RedmineProject, RedmineClient
 from redmine_gitlab_migrator.gitlab import GitlabProject, GitlabClient
@@ -126,6 +127,7 @@ def perform_migrate_issues(args):
     # Get issues
 
     issues = redmine_project.get_all_issues(args.closed)
+    log.info('#{} peticiones a migrar'.format(len(issues)))
     milestones_index = gitlab_project.get_milestones_index()
     issues_data = (
         convert_issue(
@@ -152,10 +154,10 @@ def perform_migrate_issues(args):
                 )
             )
         else:
-            if not args.closed:
-                closed = redmine_project.close_issue(data)
+            redmine_project.close_issue(data)
             created = gitlab_project.create_issue(data, meta)
             log.info('#{iid} {title}'.format(**created))
+            time.sleep(1)
 
 
 def perform_migrate_iid(args):

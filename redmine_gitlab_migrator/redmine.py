@@ -27,10 +27,9 @@ class RedmineClient(APIClient):
         """ Iterates over API pagination for a given resource list
         """
         kwargs['params'] = kwargs.get('params', {})
-        kwargs['params']['limit'] = self.PAGE_MAX_SIZE
+        kwargs['params']['limit'] = 100
 
         resp = self.get(*args, **kwargs)
-
         # Try to autofind the top-level key containing
         keys_candidates = (
             set(resp.keys()) - set(['total_count', 'offset', 'limit']))
@@ -80,16 +79,17 @@ class RedmineProject(Project):
             return url
 
     def get_all_issues(self, closed=False):
-        status_ids = '1'
+        status_ids = ['1']
         if closed:
-            status_ids = '5,9'
+            status_ids = ['5']
+        status_filter = '?status_id={}'.format(*status_ids)
 
         issues = self.api.unpaginated_get(
-            '{}/issues.json?status_id={}'.format(self.public_url, status_ids))
+            '{}/issues.json{}'.format(self.public_url, status_filter)
+        )
         detailed_issues = []
         # It's impossible to get issue history from list view, so get it from
         # detail view...
-        print(len(list(issues)))
         for issue_id in (i['id'] for i in issues):
             issue_url = '{}/issues/{}.json?include=journals,relations,childrens,attachments'.format(
                 self.instance_url, issue_id)
@@ -140,7 +140,7 @@ class RedmineProject(Project):
         url = '{}/issues/{}.xml'.format(self.instance_url, data['id'])
         return requests.put(
             url,
-            data=issue_data,
+            data=issue_data.encode('utf-8'),
             headers=headers
         )
 
